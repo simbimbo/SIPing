@@ -1,0 +1,147 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+use lib "/usr/local/rrdtool/lib/perl";
+use RRDs;
+use POSIX qw(strftime);
+use Time::ParseDate;
+use CGI::Pretty qw( :all );
+use DBI;
+
+my $dbh = DBI->connect("DBI:mysql:database=rbping;host=localhost",
+                         "rbping_master", $ENV{RBPING_DB_PASS} || 'CHANGEME',
+                         {'RaiseError' => 1})
+                         or die "Couldn't connect to database: " . DBI->errstr;
+
+my $datadir = "/var/rbping-server/data";
+my $time_format = "%T %Z %D";
+my $time_format2 = "%b %d,%Y %T %Z";
+my $cgi=new CGI;
+my $url = $cgi->url;
+my ($sth,$port,$latency,$packet_loss,$style_latency,$style_pl,$style_update, $agent_id);
+
+$| = 1;
+
+print $cgi->header;
+print $cgi->start_html(-title=>'TBC Corp RBping Server',-head=>meta({-http_equiv=>'refresh',-content =>'60'}),-style=>{-src=>'/css/rbping-server.css',-type =>'text/css'});
+print $cgi->start_form(-name=>'RBping Server',-method=>'GET');
+
+display_navigation();
+
+if (defined($cgi->param('agent'))) {
+ $agent_id = $cgi->param('agent');
+ display_table();
+}
+
+print $cgi->end_form;
+print $cgi->end_html;
+
+
+sub display_navigation {
+ my @agents = @{$dbh->selectcol_arrayref("SELECT DISTINCT agent_id FROM rbping_server ORDER BY agent_id")};
+ print qq(<div id="navigation">);
+ print $cgi->img({src=>'/icons/tbclogo.gif',alt=>'TBC Corp'}),br,br;
+ print $cgi->textfield(-name=>'text_search',-size=>'20'),br;
+ print $cgi->scrolling_list(-style=>'margin-top: 5px',-name=>'search_type',-values=>['contains','begins with','ends with'],-size=>'1'),br;
+ print $cgi->submit(-style=>'margin-top: 5px',-name=>'search',-value=>'SEARCH'),br;
+ print $cgi->h2('AGENTS');
+ foreach (@agents) {
+  print $cgi->a({-href=>"/rbping-server/rbping-server.cgi?agent=$_"},$_),br;
+ }
+ print qq(</div>);
+}
+
+sub display_table {
+ print qq(<div id="content">); 
+ print $cgi->start_table({-class=>'grid',-border=>'1'});
+
+ $sth = $dbh->prepare("SELECT host,ip_addr,protocol,port FROM rbping_server WHERE agent_id='$agent_id' AND enable=1 ORDER BY host");
+ my @rows = $sth->execute();
+
+ print $cgi->Tr([
+  $cgi->th({-colspan=>'0',-class=>'heading-large'},"TBC Corp - Agent $agent_id(@rows hosts)"),
+  $cgi->th({-class=>'pad'},['HOST','IP Address','PROTOCOL','PORT','LATENCY(ms)','PACKET LOSS(%)','LAST UPDATE'])
+ ]);
+
+ while (my @hosts = $sth->fetchrow_array) {
+  my $host = $hosts[0];
+  my $ip_addr = $hosts[1];
+  my $protocol = $hosts[2];
+  if ($protocol eq 'icmp') {
+   $port = "-";
+  } else {
+   $port = $hosts[3];
+  }
+  my $hostfile = get_hostfile($host);
+  my $last_update_time = (RRDs::last "$datadir/$agent_id/$hostfile.rrd");
+  my $last_update_time_formated = strftime($time_format2, localtime(RRDs::last "$datadir/$agent_id/$hostfile.rrd"));
+  
+  if (time - $last_update_time >= 300) {
+   $style_update = "high-alert";
+  } else {
+   $style_update = "all-clear";
+  } 
+
+  my ($start,$step,$names,$data) = RRDs::fetch
+   ("$datadir/$agent_id/$hostfile.rrd","LAST","-s","$last_update_time - 60","-e","$last_update_time - 60");
+  foreach my $line (@$data) {
+   $packet_loss = sprintf('%0d',$$line[0]);
+   $latency = sprintf('%0d',$$line[1]);
+  } 
+
+  if ($packet_loss < 20) {
+   $style_pl = "all-clear";
+  } elsif ( $packet_loss >= 20 && $packet_loss < 80) {
+   $style_pl = "low-alert";
+  } elsif ( $packet_loss >= 80) {
+   $style_pl = "high-alert";
+  } else {
+   $style_pl = "inherit";
+  }
+ 
+  if ($latency < 500) {
+   $style_latency = "all-clear";
+  } elsif ($latency >=500 && $latency < 1000) {
+   $style_latency = "low-alert";
+  } elsif ( $latency >=1000 ) {
+   $style_latency = "high-alert";
+  } else {
+   $style_latency = "inherit";
+  }
+
+  if ($packet_loss == 100) {
+   $latency = "-";
+   $style_latency = "high-alert";
+  }
+
+  print $cgi->Tr({-align=>'center'},
+   $cgi->td([$cgi->a({-href=>"javascript:",
+    -onClick=>"window.open('/rbping-server/grapher.cgi?agent=$agent_id&host=$host',
+    '_blank','width=850,height=550,resizable=no,scrollbars=no')",-class=>'pad'},$host),
+    $ip_addr,$protocol,$port]),
+   $cgi->td({-class=>$style_latency},$latency),
+   $cgi->td({-class=>$style_pl},$packet_loss),
+   $cgi->td({-class=>$style_update},$last_update_time_formated)
+  );
+ }
+ print qq(</div>);
+} 
+
+sub get_hostfile {
+ my $hostfile;
+ my $host = shift;
+ my $sth = $dbh->prepare("SELECT protocol, port, tos FROM rbping_server WHERE agent_id = '$agent_id' AND 
+                          host = '$host'");
+ $sth->execute();
+ while ( my @row = $sth->fetchrow_array ) { 
+  if ($row[0] eq "icmp") {
+   $hostfile = $host . "-" . $row[0] . "-" . $row[2];
+  } else {
+   $hostfile = $host . "-" . $row[0] . "-" . $row[1] . "-" . $row[2];
+  }
+ }
+ return($hostfile);
+} 
+
+

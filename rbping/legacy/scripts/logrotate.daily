@@ -1,0 +1,38 @@
+#!/bin/bash
+
+for device in routers switches network
+do
+ cd /var/log/$device
+ mv -f $device.log archive/`date +%Y%m%d`-$device.log
+done
+
+cd /var/log/routers
+for cube in `ls -1 *cube*.log`
+do
+ mv -f $cube archive/`date +%Y%m%d`-$cube
+done
+
+cd /var/log/fw
+for fw in `ls -1 *.log`
+do
+ mv -f $fw /network_engineering/log/fw/archive/`date +%Y%m%d`-$fw
+done
+
+cd /var/log/barracuda
+for bar in `ls -1 *.log`
+do
+ mv -f $bar archive/`date +%Y%m%d`-$bar
+done
+
+cd /var/log/lb
+for lb in `ls -1 *.log`
+do
+ mv -f $lb archive/`date +%Y%m%d`-$lb
+done
+
+/etc/init.d/syslog-ng restart
+gzip /var/log/*/archive/*.log
+gzip /network_engineering/log/fw/archive/*.log
+find /var/log/*/archive/* -mtime +30 -exec rm {} \;
+find /network_engineering/log/fw/archive/* -mtime +60 -exec rm {} \;
+

@@ -26,7 +26,7 @@ def app() -> None:
     """
 
     s = Settings()
-    console.print(f"[bold]RBPing (python)[/bold] -> {s.server_host}:{s.server_port}")
+    console.print(f"[bold]SIPing (python)[/bold] -> {s.server_host}:{s.server_port}")
     console.print("This is just a scaffold. Next: implement agent tick + HTTP server.")
 
     # Basic connectivity smoke test (optional)

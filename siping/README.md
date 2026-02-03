@@ -1,6 +1,6 @@
-# RBPing (legacy) – ingestion + Python port staging
+# SIPing (legacy) – ingestion + Python port staging
 
-This folder contains the **legacy RBPing** codebase pulled from Steven’s archived `~/Desktop/rblock` dump.
+This folder contains the **legacy SIPing** codebase pulled from Steven’s archived `~/Desktop/rblock` dump.
 
 ## What’s what
 
@@ -18,19 +18,19 @@ This folder contains the **legacy RBPing** codebase pulled from Steven’s archi
 The original dump included **hardcoded DB credentials and internal IPs**.
 
 - Password literals were removed from tracked files.
-- DB password values now come from env vars (e.g., `RBPING_DB_PASS`) or are blank in PHP config.
-- The raw snapshot is intentionally excluded from git: `rbping/raw/` (see `.gitignore`).
+- DB password values now come from env vars (e.g., `SIPING_DB_PASS`) or are blank in PHP config.
+- The raw snapshot is intentionally excluded from git: `siping/raw/` (see `.gitignore`).
 
 If you need to run any of this legacy code (not recommended), set env vars like:
 
 ```bash
-export RBPING_DB_HOST=127.0.0.1
-export RBPING_DB_PORT=3306
-export RBPING_DB_USER=rbping_master
-export RBPING_DB_PASS='...'
-export RBPING_DB_NAME=rbping
+export SIPING_DB_HOST=127.0.0.1
+export SIPING_DB_PORT=3306
+export SIPING_DB_USER=siping_master
+export SIPING_DB_PASS='...'
+export SIPING_DB_NAME=siping
 ```
 
 ## Next intended step
 
-Create a clean Python target layout under `rbping/` (e.g. `rbping_py/` or `rbping/src/`) and treat `legacy/` as reference-only while we port.
+Create a clean Python target layout under `siping/` (e.g. `siping/` or `siping/src/`) and treat `legacy/` as reference-only while we port.
